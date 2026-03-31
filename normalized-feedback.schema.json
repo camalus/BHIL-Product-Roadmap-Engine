@@ -1,0 +1,236 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bhil.ai/schemas/normalized-feedback.schema.json",
+  "title": "Normalized Feedback Record",
+  "description": "Canonical schema for customer feedback records ingested from any channel. All channel-specific data normalizes to this schema before enrichment and storage.",
+  "type": "object",
+  "required": ["id", "channel_id", "channel_type", "source_id", "feedback_date", "content", "status"],
+  
+  "properties": {
+    
+    "id": {
+      "type": "string",
+      "pattern": "^FB-[0-9]{6}$",
+      "description": "Unique feedback record identifier. Format: FB-NNNNNN (zero-padded to 6 digits). Assigned at normalization time.",
+      "examples": ["FB-000001", "FB-042891"]
+    },
+
+    "channel_id": {
+      "type": "string",
+      "pattern": "^CHANNEL-[0-9]{3}$",
+      "description": "Reference to the channel configuration that produced this record. Format: CHANNEL-NNN.",
+      "examples": ["CHANNEL-001", "CHANNEL-005"]
+    },
+
+    "channel_type": {
+      "type": "string",
+      "enum": ["intercom", "salesforce", "hubspot", "app-store-apple", "app-store-google", "g2", "capterra", "nps-delighted", "nps-typeform", "nps-surveymonkey", "reddit", "discourse", "slack", "linkedin", "csv-import", "other"],
+      "description": "The type of channel this record came from."
+    },
+
+    "source_id": {
+      "type": "string",
+      "description": "The original identifier of this record in the source system. Used for deduplication and audit trail.",
+      "examples": ["conversation_abc123", "review_9f2d8e1c", "response_4471982"]
+    },
+
+    "source_url": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "Direct URL to the original record in the source system, if accessible.",
+      "examples": ["https://app.intercom.com/conversations/abc123"]
+    },
+
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this record was ingested into the pipeline."
+    },
+
+    "feedback_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when the customer provided this feedback. May differ from ingested_at for batch-ingested historical data."
+    },
+
+    "content": {
+      "type": "string",
+      "minLength": 10,
+      "description": "The verbatim customer feedback text. This field is NEVER summarized or paraphrased — it preserves the exact customer words for quote attribution in Opportunity Briefs.",
+      "examples": ["The CSV export is completely broken for files over 5,000 rows. We literally cannot do our monthly analysis without this. Please fix ASAP."]
+    },
+
+    "author": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": ["string", "null"],
+          "description": "Internal identifier for the author (may be hashed/anonymized depending on PII policy)."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["customer", "prospect", "internal", "unknown"],
+          "description": "Classification of who provided the feedback."
+        },
+        "anonymized": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether PII in this record has been anonymized."
+        }
+      },
+      "required": ["type"]
+    },
+
+    "customer_metadata": {
+      "type": "object",
+      "description": "Customer context enriched from CRM or source system. Used for RICE Reach estimation and segment filtering.",
+      "properties": {
+        "segment": {
+          "type": ["string", "null"],
+          "enum": ["enterprise", "mid-market", "smb", "free", "trial", "internal", null],
+          "description": "Customer tier segment."
+        },
+        "plan": {
+          "type": ["string", "null"],
+          "description": "Current subscription plan name."
+        },
+        "arr_band": {
+          "type": ["string", "null"],
+          "enum": ["<10k", "10k-50k", "50k-100k", "100k-500k", "500k+", null],
+          "description": "Annual recurring revenue band. Used for ARR-weighted opportunity scoring."
+        },
+        "tenure_months": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "How many months the customer has been a paying customer."
+        },
+        "company_id": {
+          "type": ["string", "null"],
+          "description": "Internal company identifier (hashed if PII policy requires)."
+        }
+      }
+    },
+
+    "enrichment": {
+      "type": "object",
+      "description": "AI-generated enrichment added by the Tagging Agent after normalization. Null until processing is complete.",
+      "properties": {
+        "sentiment": {
+          "type": ["string", "null"],
+          "enum": ["positive", "negative", "neutral", null],
+          "description": "Overall sentiment classification."
+        },
+        "sentiment_score": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1,
+          "description": "Continuous sentiment score: -1.0 = most negative, +1.0 = most positive."
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "One or more theme labels from the hierarchical taxonomy in schemas/tagging-taxonomy.yaml.",
+          "examples": [["bulk-export", "data-portability"]]
+        },
+        "entities": {
+          "type": "object",
+          "description": "Named entities extracted from the feedback content.",
+          "properties": {
+            "features": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Product features or capabilities mentioned.",
+              "examples": [["CSV export", "bulk download", "data export"]]
+            },
+            "product_areas": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Areas of the product mentioned.",
+              "examples": [["reporting", "analytics dashboard"]]
+            },
+            "integrations": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Third-party tools or integrations mentioned.",
+              "examples": [["Salesforce", "Zapier", "Google Sheets"]]
+            },
+            "competitors": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Competitor products mentioned.",
+              "examples": [["Competitor A", "Alternative B"]]
+            },
+            "user_types": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "User roles or personas mentioned.",
+              "examples": [["data analyst", "admin", "power user"]]
+            }
+          }
+        },
+        "urgency_level": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", null],
+          "description": "Urgency classification based on language intensity signals."
+        },
+        "urgency_signals": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Specific phrases that triggered urgency classification.",
+          "examples": [["can't use", "blocking us", "dealbreaker"]]
+        },
+        "ai_confidence": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score for the enrichment classifications (0.0-1.0). Records below 0.60 should be flagged for human review."
+        },
+        "enriched_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When enrichment was applied."
+        },
+        "enrichment_model": {
+          "type": ["string", "null"],
+          "description": "Model used for enrichment, for audit and reproducibility.",
+          "examples": ["claude-sonnet-4-20250514"]
+        }
+      }
+    },
+
+    "status": {
+      "type": "string",
+      "enum": ["raw", "normalizing", "processed", "linked", "archived"],
+      "description": "Processing status of this record. raw = just ingested; processed = enrichment complete; linked = associated with one or more OPP-NNN."
+    },
+
+    "linked_opportunities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^OPP-[0-9]{3}$"
+      },
+      "description": "Opportunity Brief IDs (OPP-NNN) that reference this feedback record.",
+      "examples": [["OPP-001", "OPP-007"]]
+    },
+
+    "embedding": {
+      "type": ["array", "null"],
+      "items": {"type": "number"},
+      "description": "Vector embedding of the content field. Stored in the database vector column, not in the file representation. Null in file-based storage."
+    },
+
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+
+  "additionalProperties": false
+}

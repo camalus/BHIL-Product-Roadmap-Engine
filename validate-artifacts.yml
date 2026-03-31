@@ -1,0 +1,142 @@
+name: Validate Roadmap Engine Artifacts
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'project/.sdlc/opportunities/**'
+      - 'integrations/channels/**'
+      - 'templates/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'project/.sdlc/opportunities/**'
+      - 'integrations/channels/**'
+
+jobs:
+  validate-artifacts:
+    name: Validate OPP, RICE, and PRD-STUB artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x tools/scripts/*.sh
+
+      - name: Validate full pipeline traceability
+        run: ./tools/scripts/validate-pipeline.sh --all
+
+      - name: Check for orphaned artifacts
+        run: ./tools/scripts/validate-pipeline.sh --check-orphans
+
+      - name: Validate JSON schemas
+        run: |
+          # Validate any normalized feedback JSON files
+          if ls project/feedback/normalized/*.json 2>/dev/null; then
+            npm install -g ajv-cli 2>/dev/null || true
+            for f in project/feedback/normalized/FB-*.json; do
+              ajv validate -s schemas/normalized-feedback.schema.json -d "$f" || \
+                echo "Schema validation failed for $f"
+            done
+          else
+            echo "No normalized feedback files to validate"
+          fi
+
+      - name: Validate channel config YAML
+        run: |
+          for f in integrations/channels/CHANNEL-*.yaml; do
+            [ -f "$f" ] || continue
+            # Check required fields exist
+            for field in id name type status reliability; do
+              if ! grep -q "^${field}:" "$f"; then
+                echo "❌ Missing required field '${field}' in $f"
+                exit 1
+              fi
+            done
+          done
+          echo "✅ All channel configs have required fields"
+
+  check-evidence-standards:
+    name: Enforce evidence quality standards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check approved OPPs have minimum quote count
+        run: |
+          ERRORS=0
+          for f in project/.sdlc/opportunities/OPP-*.md 2>/dev/null; do
+            [ -f "$f" ] || continue
+            status=$(grep "^status:" "$f" | awk '{print $2}')
+            if [ "$status" = "approved" ] || [ "$status" = "scored" ]; then
+              quote_count=$(grep -c "^\*\*Quote [0-9]" "$f" 2>/dev/null || echo "0")
+              if [ "$quote_count" -lt 5 ]; then
+                echo "❌ $(basename $f) has status '$status' but only $quote_count verbatim quotes (minimum: 5)"
+                ERRORS=$((ERRORS+1))
+              fi
+            fi
+          done
+          [ "$ERRORS" -gt 0 ] && exit 1
+          echo "✅ All approved OPPs meet minimum quote count"
+
+      - name: Check no AI-generated fabricated evidence
+        run: |
+          # Check for known placeholder patterns that indicate unfilled templates
+          SUSPICIOUS_PATTERNS=(
+            "\[Exact customer words\]"
+            "\[Channel: \.\.\.\]"
+            "\[Segment: \.\.\.\]"
+            "Quote 1.*verbatim"
+          )
+          ERRORS=0
+          for f in project/.sdlc/opportunities/OPP-*.md; do
+            [ -f "$f" ] || continue
+            status=$(grep "^status:" "$f" | awk '{print $2}')
+            if [ "$status" != "draft" ]; then
+              for pattern in "${SUSPICIOUS_PATTERNS[@]}"; do
+                if grep -q "$pattern" "$f" 2>/dev/null; then
+                  echo "❌ $(basename $f): Found unfilled placeholder matching '$pattern'"
+                  ERRORS=$((ERRORS+1))
+                fi
+              done
+            fi
+          done
+          [ "$ERRORS" -gt 0 ] && exit 1
+          echo "✅ No unfilled placeholders in non-draft artifacts"
+
+  validate-rice-formula:
+    name: Validate RICE score calculations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check RICE validated scorecards have required sections
+        run: |
+          ERRORS=0
+          for f in project/.sdlc/opportunities/RICE-*.md 2>/dev/null; do
+            [ -f "$f" ] || continue
+            status=$(grep "^status:" "$f" | awk '{print $2}')
+            if [ "$status" = "validated" ]; then
+              # Must have sensitivity analysis
+              if ! grep -q "## Sensitivity analysis" "$f"; then
+                echo "❌ $(basename $f) is validated but missing sensitivity analysis section"
+                ERRORS=$((ERRORS+1))
+              fi
+              # Must have a rice_score value (not null)
+              score=$(grep "^rice_score:" "$f" | awk '{print $2}')
+              if [ "$score" = "null" ] || [ -z "$score" ]; then
+                echo "❌ $(basename $f) is validated but rice_score is null"
+                ERRORS=$((ERRORS+1))
+              fi
+              # Must NOT still say "requires engineering input" for Effort
+              if grep -q "Requires engineering input" "$f"; then
+                echo "❌ $(basename $f) is validated but Effort is still marked as requiring engineering input"
+                ERRORS=$((ERRORS+1))
+              fi
+            fi
+          done
+          [ "$ERRORS" -gt 0 ] && exit 1
+          echo "✅ All validated RICE scorecards have required sections"

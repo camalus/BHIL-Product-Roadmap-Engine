@@ -1,0 +1,221 @@
+# RICE Scoring Rubric
+# BHIL Product Roadmap Engine — schemas/scoring-rubric.yaml
+#
+# This file defines the calibration standards for RICE scoring.
+# Customize the thresholds, dark matter multiplier, and tier cutoffs
+# to match your product's scale and business context.
+#
+# The values here are read by the scoring agent as scoring constraints.
+
+version: "1.0"
+last_calibrated: YYYY-MM-DD
+calibrated_by: "[PM name]"
+product_context:
+  active_customers: N             # Total paying customers
+  monthly_active_users: N         # MAU
+  avg_arr_per_customer: "$X"      # Average contract value
+  scoring_period_days: 90         # Reach measured over this window
+
+# ─── REACH CALIBRATION ────────────────────────────────────────────────────
+
+reach:
+  description: |
+    Reach = number of unique users affected per scoring_period_days.
+    The AI agent estimates Reach from feedback record counts using dark matter multipliers.
+    Override with product analytics when available — analytics data always takes priority.
+
+  # Dark matter multiplier: only ~1-in-N customers who experience pain report it.
+  # Adjust based on your feedback channel coverage and customer type.
+  dark_matter_multiplier:
+    default: 5          # Conservative default: 1 report = ~5 customers affected
+    enterprise: 3       # Enterprise customers are more likely to report (lower multiplier)
+    smb: 8              # SMB customers are less likely to report (higher multiplier)
+    free_trial: 10      # Trial users rarely report formally (highest multiplier)
+
+  # Thresholds for qualitative labels in opportunity briefs
+  labels:
+    massive: 5000       # ≥5,000 users/quarter = "affects the majority"
+    large: 1000         # ≥1,000 users/quarter = "affects a large segment"
+    medium: 500         # ≥500 users/quarter = "affects a notable minority"
+    small: 100          # ≥100 users/quarter = "affects a small but important segment"
+    niche: 0            # <100 users/quarter = "niche use case"
+
+  # When to require analytics validation before accepting AI estimate
+  analytics_validation_threshold: 500   # Reach estimates above this need analytics confirmation
+
+# ─── IMPACT CALIBRATION ──────────────────────────────────────────────────
+
+impact:
+  description: |
+    Impact = how significantly this feature improves each affected user's experience.
+    Scale: 3.0 (massive) → 2.0 (high) → 1.0 (medium) → 0.5 (low) → 0.25 (minimal)
+    The AI agent scores Impact based on urgency signals, churn correlation, and ARR tier.
+    PM must review and confirm all Impact scores before status: validated.
+
+  scale:
+    - score: 3.0
+      label: "Massive"
+      criteria:
+        - "Core workflow broken or fundamentally broken for affected users"
+        - "Directly cited in ≥3 churn interviews in past 180 days"
+        - "Enterprise tier customers using phrases like 'blocking us' or 'dealbreaker'"
+        - "Competitive loss attribution in ≥3 deal-loss notes"
+
+    - score: 2.0
+      label: "High"
+      criteria:
+        - "Significant daily friction that slows key workflow noticeably"
+        - "Enterprise or mid-market customers expressing strong negative sentiment"
+        - "Urgency language present in ≥20% of related feedback records"
+        - "Workaround exists but is painful or time-consuming"
+
+    - score: 1.0
+      label: "Medium"
+      criteria:
+        - "Noticeable improvement to a common task"
+        - "Moderate negative sentiment; low urgency language"
+        - "Workaround exists and is acceptable to most customers"
+        - "Primarily mentioned by SMB or free tier customers"
+
+    - score: 0.5
+      label: "Low"
+      criteria:
+        - "Minor convenience gain; quality-of-life improvement"
+        - "Neutral sentiment; framed as 'nice to have'"
+        - "Easy workaround exists"
+        - "Mentioned infrequently and without urgency"
+
+    - score: 0.25
+      label: "Minimal"
+      criteria:
+        - "Cosmetic or polish improvement"
+        - "Very narrow edge case"
+        - "Not mentioned in any churn or deal-loss context"
+
+  # Automatic escalation triggers — these override the standard scale
+  escalation_rules:
+    - condition: "churn_correlation: true AND arr_band IN ['50k-100k', '100k+']"
+      minimum_impact: 2.0
+      note: "Revenue at risk from enterprise churn — minimum Impact is 2.0"
+
+    - condition: "urgency_signals_count >= 5 AND segment = enterprise"
+      minimum_impact: 2.0
+      note: "Multiple urgency signals from enterprise customers"
+
+# ─── CONFIDENCE CALIBRATION ──────────────────────────────────────────────
+
+confidence:
+  description: |
+    Confidence = quality of the data supporting Reach and Impact estimates.
+    100% = analytics-confirmed | 80% = multi-channel solid | 60% = moderate | 50% = low
+    Never round up. If uncertain between two levels, use the lower one.
+
+  levels:
+    - score: 100
+      label: "High Confidence"
+      required: "Product analytics confirms Reach estimate AND customer interviews confirm Impact"
+
+    - score: 80
+      label: "Solid"
+      required: "≥3 channels represented, ≥20 feedback records, <30 days old"
+
+    - score: 60
+      label: "Moderate"
+      required: "≥2 channels, ≥10 feedback records, <60 days old"
+
+    - score: 50
+      label: "Low"
+      required: "Single channel or <10 records or >90 days old"
+
+  # Hard ceiling: even with abundant feedback data, maximum confidence
+  # without product analytics is capped at this level
+  max_without_analytics: 80
+
+  # Minimum confidence required before an opportunity can be scored
+  min_to_score: 50
+
+  # Below this confidence, flag as "strategic bet" rather than data-driven item
+  strategic_bet_threshold: 50
+
+# ─── EFFORT CALIBRATION ──────────────────────────────────────────────────
+
+effort:
+  description: |
+    Effort = total person-months to build and ship, from all contributors.
+    ALWAYS provided by engineering — never estimated by AI alone.
+    Use person-months (not weeks) for consistency.
+
+  t_shirt_sizes:
+    XS: 0.5     # ~2 weeks for 1 engineer
+    S: 1.0      # ~1 month for 1 engineer
+    M: 2.5      # ~2-3 months for 1 engineer OR 1 month for small team
+    L: 5.0      # ~4-6 months for 1 engineer OR 2 months for small team
+    XL: 10.0    # Major feature, 6-12 person-months
+    XXL: 20.0   # Platform-level; should be broken into smaller opportunities
+
+  # Opportunities above this Effort threshold should be decomposed before scoring
+  decomposition_threshold_months: 8
+
+# ─── SCORE TIERS ──────────────────────────────────────────────────────────
+
+priority_tiers:
+  description: |
+    Score thresholds for priority tier assignment.
+    Calibrate these values based on your product's typical RICE score distribution.
+    Initial calibration: run 10+ opportunities through RICE scoring, then adjust
+    thresholds so P1 = top 10%, P2 = next 20%, P3 = next 30%, etc.
+
+  tiers:
+    P1:
+      min_score: 800
+      label: "Build now"
+      action: "Include in next sprint planning"
+      color: "red"
+
+    P2:
+      min_score: 400
+      label: "Build next"
+      action: "Include in next 1-2 sprint cycles"
+      color: "orange"
+
+    P3:
+      min_score: 200
+      label: "Queue"
+      action: "Add to roadmap backlog; review quarterly"
+      color: "yellow"
+
+    P4:
+      min_score: 100
+      label: "Consider"
+      action: "Park; revisit if evidence strengthens"
+      color: "blue"
+
+    P5:
+      min_score: 0
+      label: "Defer"
+      action: "Not prioritized at current evidence level"
+      color: "gray"
+
+# ─── STRATEGIC OVERRIDES ──────────────────────────────────────────────────
+
+strategic_overrides:
+  description: |
+    Conditions where RICE score alone is insufficient for prioritization.
+    These items are tracked separately from the main RICE-ranked backlog.
+
+  categories:
+    revenue_at_risk:
+      trigger: "churn_correlation: true AND ARR > $50k"
+      action: "Escalate regardless of RICE score; review with leadership"
+
+    strategic_bet:
+      trigger: "confidence < 50%"
+      action: "Track separately as hypothesis; validate before full scoring"
+
+    compliance_required:
+      trigger: "tags contains 'security-compliance'"
+      action: "Immediate review with security team; may bypass RICE prioritization"
+
+    competitive_parity:
+      trigger: "competitor_mentions >= 5 in past 90 days"
+      action: "Flag for competitive analysis review; may require priority acceleration"

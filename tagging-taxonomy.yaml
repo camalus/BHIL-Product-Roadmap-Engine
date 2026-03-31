@@ -1,0 +1,196 @@
+# Tagging Taxonomy
+# BHIL Product Roadmap Engine — schemas/tagging-taxonomy.yaml
+# 
+# This file defines the hierarchical theme taxonomy used by the Tagging Agent
+# to classify feedback records. Themes are locked once established — additions
+# require a taxonomy review to avoid proliferation of near-duplicate themes.
+#
+# Structure: category → subcategory → theme (leaf node)
+# Agents tag to the most specific level possible.
+# If no existing theme fits, use the "other" escape hatch and flag for taxonomy review.
+#
+# Customize this taxonomy to match your product's domain before running the pipeline.
+
+version: "1.0"
+last_updated: YYYY-MM-DD
+product: "[Your product name]"
+
+taxonomy:
+
+  # ─── CORE PRODUCT FUNCTIONALITY ───────────────────────────────────────────
+
+  data-management:
+    description: "How users store, organize, and work with their data in the product"
+    themes:
+      bulk-export:
+        label: "Bulk Export / Data Download"
+        description: "Requests to export large volumes of data to external formats"
+        example_phrases: ["export all data", "download CSV", "bulk export", "data portability"]
+      data-import:
+        label: "Data Import / Migration"
+        description: "Getting data into the product from external sources"
+        example_phrases: ["import from", "migrate data", "upload CSV", "bulk import"]
+      data-organization:
+        label: "Data Organization / Structure"
+        description: "How data is organized, labeled, or hierarchically structured"
+        example_phrases: ["folder structure", "tagging", "categories", "organization"]
+      data-retention:
+        label: "Data Retention / History"
+        description: "Access to historical data, retention policies, archiving"
+        example_phrases: ["history", "archive", "retention", "old data", "audit trail"]
+
+  collaboration:
+    description: "Features enabling multiple users to work together"
+    themes:
+      real-time-collaboration:
+        label: "Real-Time Collaboration"
+        description: "Multiple users working simultaneously on the same content"
+        example_phrases: ["work together", "multiple users", "real-time", "simultaneous editing"]
+      sharing-permissions:
+        label: "Sharing and Permissions"
+        description: "Controlling who can see or edit content"
+        example_phrases: ["share with", "permissions", "access control", "restrict", "invite"]
+      comments-feedback:
+        label: "Comments and In-App Feedback"
+        description: "Leaving comments, notes, or feedback within the product"
+        example_phrases: ["comment", "annotation", "note", "feedback on", "review process"]
+      notifications:
+        label: "Notifications and Alerts"
+        description: "Being notified of relevant changes or activities"
+        example_phrases: ["notification", "alert", "email me when", "notify", "remind me"]
+
+  integrations:
+    description: "Connecting to third-party tools and services"
+    themes:
+      api-access:
+        label: "API Access and Capabilities"
+        description: "Using the product's API, webhooks, and developer features"
+        example_phrases: ["API", "webhook", "REST", "integration build", "developer"]
+      crm-integration:
+        label: "CRM Integration"
+        description: "Integration with CRM platforms"
+        example_phrases: ["Salesforce", "HubSpot", "CRM", "contact sync"]
+      productivity-tools:
+        label: "Productivity Tool Integration"
+        description: "Integration with tools like Slack, Teams, Jira, Notion"
+        example_phrases: ["Slack", "Teams", "Jira", "Linear", "Notion", "workflow"]
+      sso-auth:
+        label: "SSO / Authentication"
+        description: "Single sign-on, SAML, identity provider integration"
+        example_phrases: ["SSO", "SAML", "Okta", "Azure AD", "Google SSO", "login with"]
+      zapier-automation:
+        label: "Automation / No-Code Integration"
+        description: "Zapier, Make, n8n, or other automation platform integration"
+        example_phrases: ["Zapier", "Make", "automate", "trigger", "workflow automation"]
+
+  # ─── USER EXPERIENCE ──────────────────────────────────────────────────────
+
+  performance:
+    description: "Speed, reliability, and technical performance"
+    themes:
+      slow-loading:
+        label: "Slow Loading / Latency"
+        description: "Pages, features, or operations taking too long"
+        example_phrases: ["slow", "takes forever", "loading", "lag", "timeout", "spin"]
+      crashes-errors:
+        label: "Crashes and Errors"
+        description: "Unexpected errors, crashes, or data loss incidents"
+        example_phrases: ["crashes", "error", "broken", "bug", "doesn't work", "lost my work"]
+      reliability:
+        label: "Reliability / Uptime"
+        description: "Service availability and uptime concerns"
+        example_phrases: ["down", "outage", "unreliable", "uptime", "availability"]
+      offline-mode:
+        label: "Offline / Low-Connectivity Mode"
+        description: "Working without internet or in low-connectivity environments"
+        example_phrases: ["offline", "no internet", "poor connection", "work offline"]
+
+  ui-ux:
+    description: "Visual design, usability, and interface quality"
+    themes:
+      navigation:
+        label: "Navigation and Discoverability"
+        description: "Finding features or content within the product"
+        example_phrases: ["can't find", "navigation", "confusing", "hidden", "where is"]
+      mobile-experience:
+        label: "Mobile Experience"
+        description: "Using the product on mobile devices"
+        example_phrases: ["mobile", "app", "iPhone", "Android", "phone", "tablet"]
+      accessibility:
+        label: "Accessibility"
+        description: "Using the product with assistive technologies or special needs"
+        example_phrases: ["screen reader", "accessibility", "keyboard", "contrast", "a11y"]
+      onboarding:
+        label: "Onboarding and Setup"
+        description: "Getting started with the product for the first time"
+        example_phrases: ["setup", "getting started", "onboarding", "initial", "new user"]
+
+  # ─── ACCOUNT AND ADMINISTRATION ───────────────────────────────────────────
+
+  admin:
+    description: "Account management, billing, and administrative features"
+    themes:
+      billing-pricing:
+        label: "Billing and Pricing"
+        description: "Payment, invoicing, plan changes, pricing concerns"
+        example_phrases: ["billing", "invoice", "charge", "price", "cost", "plan"]
+      user-management:
+        label: "User Management"
+        description: "Adding, removing, or managing team members"
+        example_phrases: ["add user", "remove user", "seat", "team member", "manage users"]
+      reporting-analytics:
+        label: "Reporting and Analytics"
+        description: "Usage data, reporting, and analytics within the product"
+        example_phrases: ["report", "analytics", "dashboard", "metrics", "usage stats"]
+      security-compliance:
+        label: "Security and Compliance"
+        description: "Security features, compliance requirements, audit needs"
+        example_phrases: ["security", "GDPR", "SOC2", "compliance", "audit", "data security"]
+
+  # ─── SUPPORT AND DOCUMENTATION ────────────────────────────────────────────
+
+  support:
+    description: "Customer support quality and documentation"
+    themes:
+      documentation:
+        label: "Documentation and Help Content"
+        description: "Quality or availability of product documentation"
+        example_phrases: ["documentation", "help article", "tutorial", "how to", "guide"]
+      support-response:
+        label: "Support Response Quality"
+        description: "Feedback about the support experience itself"
+        example_phrases: ["support team", "response time", "ticket", "no response", "support"]
+
+  # ─── ESCAPE HATCH ─────────────────────────────────────────────────────────
+
+  other:
+    description: "Topics not covered by the taxonomy above. Always provide a description."
+    themes:
+      uncategorized:
+        label: "Uncategorized / Needs Review"
+        description: "Feedback that doesn't fit existing themes. Requires taxonomy review."
+        example_phrases: []
+        flag_for_review: true
+
+# ─── TAXONOMY GOVERNANCE ────────────────────────────────────────────────────
+
+governance:
+  add_theme_process: |
+    1. Tag ≥10 feedback records with 'uncategorized' containing the new concept
+    2. Confirm the concept is distinct from all existing themes (no synonyms allowed)
+    3. Write a clear description and 3+ example phrases
+    4. Submit as a PR; requires PM review before merge
+    5. After merge, re-tag the 10+ records with the new theme
+
+  synonym_policy: |
+    Synonyms are NOT added as separate themes. Instead, add synonym phrases to
+    the 'example_phrases' list of the canonical theme. The tagging agent maps
+    synonyms to the canonical theme ID.
+    Examples:
+    - "CSV download" and "data export" both → bulk-export
+    - "bug" and "error" and "broken" all → crashes-errors
+
+  deprecation_policy: |
+    Themes are marked deprecated: true, never deleted.
+    Existing records retain their deprecated theme tags for historical analysis.
+    New records should use the replacement theme specified in deprecated_reason.

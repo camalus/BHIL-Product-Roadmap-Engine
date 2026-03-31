@@ -1,0 +1,101 @@
+# Channel Configuration Template
+# Copy to integrations/channels/CHANNEL-NNN-[name].yaml and fill in all fields.
+# This file is read by the ingestion agent to configure data extraction.
+# BHIL Product Roadmap Engine — barryhurd.com
+
+---
+id: CHANNEL-NNN
+name: "[Human-readable channel name, e.g., 'Intercom Support Chat']"
+type: "[intercom | salesforce | hubspot | app-store | nps | reddit | slack | linkedin | csv-import]"
+status: active             # active | paused | deprecated
+created: YYYY-MM-DD
+last_modified: YYYY-MM-DD
+reliability: high          # high | medium | low
+priority: 1                # 1=highest priority for this channel in opportunity scoring
+
+# Authentication (reference environment variables — never store values here)
+auth:
+  method: "[api-key | oauth2 | jwt | basic-auth | webhook-secret]"
+  env_vars:
+    - name: "[ENV_VAR_NAME]"
+      description: "[What this key is for]"
+    - name: "[ENV_VAR_NAME_2]"
+      description: "[What this key is for]"
+
+# Ingestion schedule
+schedule:
+  mode: "[webhook | polling | batch | streaming]"
+  cron: "[null if webhook/streaming; e.g., '0 6 * * *' for daily at 6am]"
+  lookback_days: 90        # For initial historical backfill
+  incremental: true        # true = only fetch new records; false = full refresh
+
+# API configuration
+api:
+  base_url: "[e.g., 'https://api.intercom.io']"
+  version: "[e.g., 'v2']"
+  rate_limit:
+    requests_per_minute: N
+    requests_per_day: N
+    retry_strategy: "exponential-backoff"  # exponential-backoff | fixed | none
+    max_retries: 3
+  pagination:
+    style: "[cursor | page | offset | none]"
+    page_size: 100
+
+# Data extraction configuration
+extraction:
+  # Endpoints or queries to run
+  endpoints:
+    - path: "[e.g., '/conversations/search']"
+      method: "[GET | POST]"
+      description: "[What this endpoint extracts]"
+      filters:
+        - "[e.g., 'author.type = user']"
+        - "[e.g., 'created_at > {last_run_timestamp}']"
+
+  # Fields to extract and how they map to the normalized schema
+  field_mapping:
+    content_field: "[source field path, e.g., 'body' or 'conversation_parts[].body']"
+    timestamp_field: "[e.g., 'created_at']"
+    author_id_field: "[e.g., 'author.id']"
+    source_id_field: "[e.g., 'id']"  # Unique ID in source system
+    source_url_template: "[e.g., 'https://app.intercom.com/conversations/{id}']"
+
+  # Customer metadata mapping (for RICE Reach estimation)
+  metadata_mapping:
+    segment_field: "[e.g., 'user.custom_attributes.plan_tier']"
+    arr_field: "[e.g., 'user.custom_attributes.annual_revenue']"
+    tenure_field: "[e.g., 'user.custom_attributes.account_age_months']"
+    company_id_field: "[e.g., 'company.id']"
+
+  # Filters to exclude non-feedback content
+  exclude_filters:
+    - "[e.g., 'author.type = admin']"
+    - "[e.g., 'author.type = bot']"
+    - "[e.g., 'tags contains internal_note']"
+
+# Normalization rules
+normalization:
+  # Sentiment pre-labeling from native signals (if available)
+  native_sentiment:
+    enabled: false          # true if channel provides native ratings/scores
+    field: null             # e.g., 'rating' for review channels
+    mapping:                # How to map native scores to positive/negative/neutral
+      positive_range: null  # e.g., [4, 5] for star ratings
+      negative_range: null  # e.g., [1, 2]
+      neutral_range: null   # e.g., [3]
+
+  # Content filtering (remove very short or clearly non-feedback text)
+  min_content_length: 20   # Characters; records shorter than this are skipped
+  exclude_patterns:        # Regex patterns to exclude (e.g., automated messages)
+    - "[e.g., '^Thank you for your message.*']"
+
+# Quality metadata
+quality:
+  requires_scraping: false  # true for channels without official API (e.g., Capterra)
+  pii_risk: medium          # high | medium | low — affects anonymization handling
+  anonymize_by_default: true
+  data_freshness_sla_hours: 24  # Maximum age of data before considered stale
+
+# Notes
+notes: "[Any important context about this channel's data quality, known issues, or special handling required]"

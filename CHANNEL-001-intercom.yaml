@@ -1,0 +1,119 @@
+---
+id: CHANNEL-001
+name: "Intercom Support Chat"
+type: intercom
+status: active
+created: YYYY-MM-DD
+last_modified: YYYY-MM-DD
+reliability: high
+priority: 1
+
+auth:
+  method: api-key
+  env_vars:
+    - name: INTERCOM_API_KEY
+      description: "Intercom Private App API key. Generate in Settings → Integrations → Developer Hub. Required scopes: conversations:read, contacts:read, tags:read."
+    - name: INTERCOM_WEBHOOK_SECRET
+      description: "Secret for validating X-Hub-Signature on incoming webhooks. Set when creating the webhook endpoint."
+
+schedule:
+  mode: webhook
+  cron: "0 2 * * *"     # Daily sweep at 2am as fallback in case webhooks are missed
+  lookback_days: 90
+  incremental: true
+  webhook_events:
+    - "conversation.user.replied"
+    - "conversation.admin.closed"
+    - "conversation.user.created"
+
+api:
+  base_url: "https://api.intercom.io"
+  version: "2.10"
+  rate_limit:
+    requests_per_minute: 1000
+    requests_per_day: 10000
+    retry_strategy: "exponential-backoff"
+    max_retries: 3
+  pagination:
+    style: cursor
+    page_size: 150
+    cursor_field: "starting_after"
+
+extraction:
+  endpoints:
+    - path: "/conversations/search"
+      method: POST
+      description: "Search for conversations with user messages since last run"
+      body:
+        query:
+          operator: "AND"
+          value:
+            - field: "statistics.last_contact_reply_at"
+              operator: ">="
+              value: "{last_run_timestamp}"
+            - field: "state"
+              operator: "="
+              value: "open"
+
+    - path: "/conversations/search"
+      method: POST
+      description: "Closed conversations with user messages"
+      body:
+        query:
+          operator: "AND"
+          value:
+            - field: "statistics.last_contact_reply_at"
+              operator: ">="
+              value: "{last_run_timestamp}"
+            - field: "state"
+              operator: "="
+              value: "closed"
+
+  field_mapping:
+    content_field: "conversation_parts[].body"
+    content_filter: "author.type == 'user'"  # Only extract user messages, not admin replies
+    timestamp_field: "statistics.last_contact_reply_at"
+    author_id_field: "contacts[0].id"
+    source_id_field: "id"
+    source_url_template: "https://app.intercom.com/conversations/{id}"
+
+  metadata_mapping:
+    segment_field: "contacts[0].custom_attributes.plan_tier"
+    arr_field: "contacts[0].custom_attributes.annual_revenue"
+    tenure_field: "contacts[0].custom_attributes.account_age_months"
+    company_id_field: "contacts[0].companies[0].id"
+
+  # Skip these types of conversation content
+  exclude_filters:
+    - "author.type == 'admin'"
+    - "author.type == 'bot'"
+    - "body startswith 'Hi there'"  # Generic bot greetings
+    - "tags contains 'internal-note'"
+
+normalization:
+  native_sentiment:
+    enabled: false
+  min_content_length: 20
+  exclude_patterns:
+    - "^Thanks for reaching out.*"
+    - "^Thanks for contacting us.*"
+    - "^Your ticket has been.*"
+
+quality:
+  requires_scraping: false
+  pii_risk: medium
+  anonymize_by_default: true
+  data_freshness_sla_hours: 2    # Webhook-based; should be near-real-time
+
+notes: |
+  Intercom is typically the highest-volume and highest-quality channel.
+  The 'conversation_parts' array contains the full conversation thread —
+  extract only parts where author.type = 'user' to get customer messages.
+  Admin replies provide context but should not be ingested as customer feedback.
+  
+  Historical backfill: Use the Data Export API for periods > 90 days:
+    POST /export/content/data with created_at range.
+  
+  Customer metadata enrichment: Join contacts endpoint to get plan, ARR, tenure.
+  The custom_attributes field names may differ from what's shown here —
+  verify against your Intercom contact schema before activating.
